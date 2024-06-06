@@ -1,0 +1,74 @@
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+import java.sql.*;
+
+public class asg5 {
+  public static void main(String[] args) {
+    try {
+      // Prompt user for input file name
+      BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+      System.out.print("Enter input file name: ");
+      String filename = reader.readLine();
+
+      // Establish database connection
+      Connection conn = DriverManager.getConnection("jdbc:postgresql://localhost:5432/mydatabase", "myuser", "mypassword");
+
+      // Open input file and read project numbers
+      FileReader fileReader = new FileReader(filename);
+      BufferedReader bufferedReader = new BufferedReader(fileReader);
+      String line;
+      int totalAssignments = 0;
+      int validProjects = 0;
+      while ((line = bufferedReader.readLine()) != null) {
+        // Remove hyphens and spaces from project number
+        String projectNumber = line.replaceAll("[\\s-]+", "");
+
+        // Validate project number format
+        if (!projectNumber.matches("\\d{6}")) {
+          System.out.println("Invalid input: " + line);
+        } else {
+          // Execute SQL query to retrieve project details
+          String query = "SELECT p.project_number, p.project_name, d.department_name, m.manager_name, COUNT(*) as assignments " +
+                         "FROM projects p " +
+                         "JOIN departments d ON p.department_id = d.department_id " +
+                         "JOIN employees m ON d.manager_id = m.employee_id " +
+                         "JOIN work_assignments w ON p.project_number = w.project_number " +
+                         "WHERE p.project_number = ? " +
+                         "GROUP BY p.project_number, p.project_name, d.department_name, m.manager_name";
+          PreparedStatement pstmt = conn.prepareStatement(query);
+          pstmt.setString(1, projectNumber);
+          ResultSet rs = pstmt.executeQuery();
+
+          // Process project details
+          if (rs.next()) {
+            String projectName = rs.getString("project_name");
+            String departmentName = rs.getString("department_name");
+            String managerName = rs.getString("manager_name");
+            int assignments = rs.getInt("assignments");
+            System.out.println("Project number: " + projectNumber);
+            System.out.println("Project name: " + projectName);
+            System.out.println("Department: " + departmentName);
+            System.out.println("Manager: " + managerName);
+            System.out.println("Number of work assignments: " + assignments);
+            totalAssignments += assignments;
+            validProjects++;
+          } else {
+            System.out.println("Project not found: " + line);
+          }
+          rs.close();
+          pstmt.close();
+        }
+      }
+      bufferedReader.close();
+      conn.close();
+
+      // Output average number of work assignments per valid project
+      System.out.println("Average number of work assignments per project: " + (double)totalAssignments / validProjects);
+    } catch (IOException e) {
+      e.printStackTrace();
+    } catch (SQLException e) {
+      e.printStackTrace();
+    }
+  }
+}
